@@ -19,9 +19,22 @@ app.message('bot ping', async ({ message, say }) => {
   }
 });
 
+// Create a simple HTTP server for health checks
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot is running!\n');
+});
+
 // Start the app
 (async () => {
   const port = process.env.PORT || 3000;
-  await app.start(port);
-  console.log(`⚡️ Slack bot is running on port ${port}!`);
+  
+  // Start the HTTP server
+  server.listen(port, () => {
+    console.log(`HTTP server listening on port ${port}`);
+  });
+  
+  // Start the Slack app
+  await app.start();
+  console.log(`⚡️ Slack bot is running!`);
 })();
