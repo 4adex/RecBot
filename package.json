@@ -1,13 +1,14 @@
 {
-    "name": "bot-ping-pong",
-    "version": "1.0.0",
-    "description": "A simple Slack bot that responds to bot ping with bot pong",
-    "main": "index.js",
-    "scripts": {
-      "start": "node index.js"
-    },
-    "dependencies": {
-      "@slack/bolt": "^3.12.0",
-      "dotenv": "^16.0.3"
-    }
+  "name": "onrec-bot",
+  "version": "1.0.0",
+  "description": "A Slack bot that tracks equipment assignments",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.12.0",
+    "dotenv": "^16.0.3",
+    "mongodb": "^5.1.0"
+  }
   }
