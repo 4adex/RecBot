@@ -71,6 +71,10 @@ app.message('bot ping', async ({ message, say }) => {
   }
 });
 
+app.message(/(.*)@des(.*)/, async ({ context, message, say }) => {
+  await say('<@U0747E59XA6> terko bula rhe');
+});
+
 // Listen for equipment status requests
 app.message('bot equipments status', async ({ message, say }) => {
   try {
