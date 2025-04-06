@@ -1,7 +1,8 @@
+// Import required dependencies
 const { App } = require('@slack/bolt');
-require('dotenv').config();
-const http = require('http');
 const { MongoClient } = require('mongodb');
+const http = require('http');
+require('dotenv').config();
 
 // Initialize the Slack app
 const app = new App({
@@ -11,17 +12,24 @@ const app = new App({
   appToken: process.env.SLACK_APP_TOKEN
 });
 
-
+// MongoDB setup
+let mongoClient;
 let db;
 let equipmentsCollection;
+let isMongoConnected = false;
 
+// MongoDB connection function
 async function connectToMongoDB() {
   try {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
+    // Create new MongoDB client
+    mongoClient = new MongoClient(process.env.MONGODB_URI);
+    
+    // Connect to MongoDB
+    await mongoClient.connect();
     console.log('Connected to MongoDB');
     
-    db = client.db(process.env.MONGODB_DB_NAME || 'equipmentTracker');
+    // Set up database and collection
+    db = mongoClient.db(process.env.MONGODB_DB_NAME || 'equipmentTracker');
     equipmentsCollection = db.collection('equipments');
     
     // Check if equipment document exists, create default if not
@@ -36,14 +44,43 @@ async function connectToMongoDB() {
       });
       console.log('Created default equipment status');
     }
+    
+    isMongoConnected = true;
+    return true;
   } catch (error) {
     console.error('MongoDB connection error:', error);
+    isMongoConnected = false;
+    return false;
   }
 }
+
+// Helper function to ensure MongoDB is connected before operations
+async function ensureMongoConnected() {
+  if (!isMongoConnected) {
+    return await connectToMongoDB();
+  }
+  return true;
+}
+
+// Listen for messages containing "bot ping"
+app.message('bot ping', async ({ message, say }) => {
+  try {
+    await say('bot pong');
+  } catch (error) {
+    console.error('Error responding to bot ping:', error);
+  }
+});
 
 // Listen for equipment status requests
 app.message('bot equipments status', async ({ message, say }) => {
   try {
+    // Ensure MongoDB is connected
+    const connected = await ensureMongoConnected();
+    if (!connected) {
+      await say('Cannot connect to the database. Please try again later.');
+      return;
+    }
+    
     const equipments = await equipmentsCollection.findOne({ _id: 'equipmentStatus' });
     
     if (!equipments) {
@@ -70,6 +107,13 @@ app.message('bot equipments status', async ({ message, say }) => {
 // Listen for equipment assignment updates
 app.message(/bot (.*) has (.*)/, async ({ context, message, say }) => {
   try {
+    // Ensure MongoDB is connected
+    const connected = await ensureMongoConnected();
+    if (!connected) {
+      await say('Cannot connect to the database. Please try again later.');
+      return;
+    }
+    
     // Extract person and equipment from the message
     const matches = context.matches;
     const person = matches[1].trim();
@@ -101,16 +145,6 @@ app.message(/bot (.*) has (.*)/, async ({ context, message, say }) => {
   }
 });
 
-// Listen for messages containing "bot ping"
-app.message('bot ping', async ({ message, say }) => {
-  try {
-    // Reply with "bot pong"
-    await say('bot pong');
-  } catch (error) {
-    console.error('Error responding to bot ping:', error);
-  }
-});
-
 // Create a simple HTTP server for health checks
 const server = http.createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -121,12 +155,25 @@ const server = http.createServer((req, res) => {
 (async () => {
   const port = process.env.PORT || 3000;
   
+  // Try to connect to MongoDB first
+  await connectToMongoDB();
+  
   // Start the HTTP server
   server.listen(port, () => {
     console.log(`HTTP server listening on port ${port}`);
   });
   
-  // Start the Slack app
+  // Then start the Slack app
   await app.start();
   console.log(`⚡️ Slack bot is running!`);
 })();
+
+// Handle shutdown gracefully
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down...');
+  if (mongoClient) {
+    await mongoClient.close();
+    console.log('MongoDB connection closed');
+  }
+  process.exit(0);
+});
